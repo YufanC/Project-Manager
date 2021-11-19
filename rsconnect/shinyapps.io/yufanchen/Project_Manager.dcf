@@ -1,0 +1,14 @@
+name: Project_Manager
+title: Project_Manager
+username:
+account: yufanchen
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 5153268
+bundleId: 5269698
+url: https://yufanchen.shinyapps.io/Project_Manager/
+when: 1637311045.18119
+lastSyncTime: 1637311045.18119
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: Test.R|Yufan Chen Calendar2.csv|Yufan Chen Calendar3.csv|Yufan Chen Calendar4.csv
