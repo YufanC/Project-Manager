@@ -165,20 +165,30 @@ server <- function(input, output, session) {
   #   values$timedf <- all
   # })
 
-  observeEvent(input$finish, {
-    id_now <<- input$schedule_selected
-    if (!is.null(input$schedule_selected) && is.na(all$style[all$id == input$schedule_selected])){
-      all$style[all$id == input$schedule_selected] <<- "color: red;"
-    } else if (input$finish == F){
-      all$style[all$id == input$schedule_selected] <<- NA}
-    # } else {
-    #   all$style[all$id == input$schedule_selected] <<- NA
-    # }
-    values$timedf <- all
-  })
+  # observeEvent(input$finish, {
+  #   
+  #   if (!is.null(input$schedule_selected) && is.na(all$style[all$id == input$schedule_selected])){
+  #     all$style[all$id == input$schedule_selected] <<- "color: red;"
+  #   } else if (input$finish == F){
+  #     all$style[all$id == input$schedule_selected] <<- NA}
+  #   # } else {
+  #   #   all$style[all$id == input$schedule_selected] <<- NA
+  #   # }
+  #   values$timedf <- all
+  # })
 
   ### Output
   output$schedule <- renderTimevis({
+    id_now <<- input$schedule_selected
+    if (!is.null(input$schedule_selected) && is.na(all$style[all$id == input$schedule_selected]) && input$finish){
+      all$style[all$id == input$schedule_selected] <<- "color: red;"
+    } else if (input$finish == F){
+      all$style[all$id == input$schedule_selected] <<- NA}
+    if (input$finish == F){
+      all$style[all$id == input$schedule_selected] <<- NA
+    }
+    values$timedf <- all
+    
     timevis(data = values$timedf, groups = data.frame(id = 1:2, content = c("Meetings", "Tasks")), fit = F) %>% 
       centerItem(id_now)
   })
