@@ -47,7 +47,7 @@ ui <- dashboardPage(
                   timevisOutput("schedule"),
                   actionButton("delete2", "Delete"),
                   br(),
-                  checkboxInput("finish", label = "Selected Task")
+                  checkboxInput("finish", label = "Selected Task", value = FALSE)
                   # textOutput("items")
                 )
               ))
