@@ -3,7 +3,20 @@ library(timevis)
 library(shiny)
 library(shinyTime)
 library(shinydashboard)
+library(googlesheets4)
 
+# library(httr)
+# set_config(
+#   use_proxy(url="ecoreproxy.sg.ap.jnj.com", port=8080, username="ychen209",password="Xdk@930611LYT")
+# )
+# gs4_auth_configure(api_key = "f449f931544a5ce90c3c2ac94860a08bbc443ddd")
+# gs4_auth(
+#   scopes = 'https://www.googleapis.com/auth/spreadsheets',
+#   path = Sys.getenv('GOOGLE_DRIVE_KEY'))
+
+gs4_auth(path = "strong-imagery-332905-f449f931544a.json")
+
+gspath <- "https://docs.google.com/spreadsheets/d/122crpMUr-JhZwGDeEKgkZFSPKBCDyEXePliX6VVu_-g/edit#gid=0"
 
 ### Shiny begins
 ui <- dashboardPage(
@@ -22,7 +35,7 @@ ui <- dashboardPage(
                 box(
                   width = 4,
                   # file upload manager
-                  fileInput("file", label = "File input", accept = ".csv"),
+                  fileInput("file", label = "File input", accept = c(".csv", ".CSV")),
                   hr(),
                   fluidRow(column(4, verbatimTextOutput("value"))),
                   dateInput(inputId = "date",
@@ -46,6 +59,7 @@ ui <- dashboardPage(
                   width = 8,
                   timevisOutput("schedule"),
                   actionButton("delete2", "Delete"),
+                  actionButton("undo", "Undo"),
                   br(),
                   checkboxInput("finish", label = "Selected Task", value = FALSE)
                   # textOutput("items")
@@ -58,7 +72,8 @@ ui <- dashboardPage(
 server <- function(input, output, session) {
   
   all <- data.frame()
-  values <- reactiveValues(timedf = NULL)
+  calendar0 <- read_sheet(gspath, sheet = "Sheet1")
+  values <- reactiveValues(timedf = NULL, origdf = NULL, undo = list(), counter = 1)
   ### Add input onto the calendar dataframe
   observe({
     if (!is.null(input$file)){
@@ -66,12 +81,30 @@ server <- function(input, output, session) {
       ext <- tools::file_ext(file$datapath)
       
       req(file)
-      validate(need(ext == "csv", "Please upload a csv file"))
+      validate(need(ext == "csv"|ext == "CSV", "Please upload a csv file"))
       
-      all <<- read.csv(file$datapath)
+      calendar <- read.csv(file$datapath)
+      
+      calendar1 <- calendar %>% 
+        mutate(start_time = format(strptime(Start.Time, "%I:%M:%S %p"), "%H:%M:%S"),
+               end_time = format(strptime(End.Time, "%I:%M:%S %p"), "%H:%M:%S"),
+               start_date = as.Date.character(Start.Date, format = "%m/%d/%Y"),
+               end_date = as.Date.character(End.Date, format = "%m/%d/%Y"),
+               start = paste(start_date, trimws(start_time), " "),
+               end = paste(end_date, trimws(end_time), " "),
+               title = `ï..Subject`,
+               group = 1,
+               editable = TRUE,
+               style = NA) %>% 
+        rename(content = `ï..Subject`) %>% 
+        bind_cols(id = paste0("item", 1:nrow(calendar))) %>% 
+        select(id, content, title, start, end, group, editable, style)
+      
+      all <<- rbind(calendar1, filter(calendar0, group == 2))
     } 
     else {
-      all <<- read.csv("Yufan Chen Calendar1.csv")
+      all <<- calendar0
+      # all <<- read.csv("Yufan Chen Calendar1.csv")
     }
     
     if (2 %in% all$group) {
@@ -90,7 +123,7 @@ server <- function(input, output, session) {
   
   observeEvent(input$add, {
     id_now <<- as.character(as.numeric(Sys.time())*100000)
-    df_temp <<- data.frame(stringsAsFactors = F,
+    df_temp <- data.frame(stringsAsFactors = F,
                     id = id_now,
                     content = input$work,
                     title = input$work,
@@ -99,31 +132,44 @@ server <- function(input, output, session) {
                     group = 2,
                     editable = TRUE,
                     style = NA)
-    # df_temp <<- as.data.frame(p)
-  }, ignoreNULL = FALSE)
-  
-  df <- eventReactive(input$add, {
     all <<- rbind(all, df_temp)
+    # df_temp <<- as.data.frame(p)
   })
+  
+  # df <- eventReactive(input$add, {
+  #   all <<- rbind(all, df_temp)
+  # })
 
   ### Add and delete functionality  
 
-  observeEvent(input$add, {
-    # values$timedf <- all
-    # if (!is.null(input$add)){
-      values$timedf <- df()
-    # }
-  })
+  # observeEvent(input$add, {
+  #   # values$timedf <- all
+  #   # if (!is.null(input$add)){
+  #   all <<- rbind(all, df_temp)
+  #   values$timedf <- all
+  #   # }
+  # })
   
   observeEvent(input$delete, {
     all <<- all[-nrow(all), ]
     values$timedf <- all
   })
   
-  ### Delete by clicking
+  ### Delete by clicking, add another reactiveValue origdf for undo functionality
   observeEvent(input$delete2, {
+    values$undo[[values$counter]] <- all
+    values$counter <- values$counter + 1
     all <<- all[all$id != input$schedule_selected, ]
     values$timedf <- all
+  })
+  
+  ### Undo for deleting by clicking
+  observeEvent(input$undo, {
+    if (values$counter > 1){
+      all <<- values$undo[[values$counter - 1]]
+      values$counter <- values$counter - 1
+      values$timedf <- all
+    }
   })
   
   ### Check after finishing
@@ -133,6 +179,7 @@ server <- function(input, output, session) {
     } else if (!is.null(input$schedule_selected) && !is.na(all$style[all$id == input$schedule_selected])){
       updateCheckboxInput(session, "finish", label = all$content[all$id == input$schedule_selected], value = TRUE)
     }
+    id_now <<- input$schedule_selected
   })
     
   # observe({
@@ -179,7 +226,6 @@ server <- function(input, output, session) {
 
   ### Output
   output$schedule <- renderTimevis({
-    id_now <<- input$schedule_selected
     if (!is.null(input$schedule_selected) && is.na(all$style[all$id == input$schedule_selected]) && input$finish){
       all$style[all$id == input$schedule_selected] <<- "color: red;"
     } else if (input$finish == F){
@@ -204,15 +250,15 @@ server <- function(input, output, session) {
     updateSelectInput(session, "work", choices = choice_list, selected = input$item)
   })
   
-  ### Save input data
-  observeEvent(input$save, {
-    write.csv(values$timedf, file = "Yufan Chen Calendar1.csv", row.names = FALSE, quote = TRUE)
-  })
-  
+  ### Save input data 
   observeEvent(input$save, {
     showNotification("New tasks have been saved",
                      action = a(href = "javascript:location.reload();", "Reload page"))
+    
+    sheet_write(values$timedf, ss = gspath, sheet = "Sheet1")
+    # write.csv(values$timedf, file = "Yufan Chen Calendar1.csv", row.names = FALSE, quote = TRUE)
   })
+
 }
 
 shinyApp(ui = ui, server = server)
