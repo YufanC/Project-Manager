@@ -4,7 +4,9 @@ library(shiny)
 library(shinyTime)
 library(shinydashboard)
 library(googlesheets4)
+library(ggplot2)
 
+### To use proxy for some popping errors
 # library(httr)
 # set_config(
 #   use_proxy(url="ecoreproxy.sg.ap.jnj.com", port=8080, username="ychen209",password="Xdk@930611LYT")
@@ -23,9 +25,9 @@ ui <- dashboardPage(
   dashboardHeader(title = "Project Planner"),
   dashboardSidebar(
     sidebarMenu(
-      menuItem("Planner", tabName = "planner", icon = icon("tasks"))
-      # menuItem("Table", tabName = "table", icon = icon("table")),
-      # menuItem("Plot", tabName = "plot", icon = icon("chart-line"))
+      menuItem("Planner", tabName = "planner", icon = icon("tasks")),
+      menuItem("Table", tabName = "table", icon = icon("table")),
+      menuItem("Plot", tabName = "plot", icon = icon("chart-line"))
     )
   ),
   dashboardBody(
@@ -49,8 +51,8 @@ ui <- dashboardPage(
                     textInput("item", label = "New Item"),
                     actionButton("additem", "Add Item")),
                   br(),
-                  timeInput("start", "Start Time:", value = Sys.time(), seconds = FALSE),
-                  timeInput("end", "End Time:", value = Sys.time(), seconds = FALSE),
+                  timeInput("start", "Start time:", value = Sys.time(), seconds = FALSE),
+                  timeInput("end", "End time:", value = Sys.time(), seconds = FALSE),
                   actionButton("add", "Add"),
                   actionButton("delete", "Delete"),
                   actionButton("save", "Save")
@@ -63,6 +65,20 @@ ui <- dashboardPage(
                   br(),
                   checkboxInput("finish", label = "Selected Task", value = FALSE)
                   # textOutput("items")
+                )
+              )),
+      tabItem(tabName = "table",
+              fluidRow(
+                box(
+                  width = 12,
+                  dataTableOutput("table1")
+                )
+              )),
+      tabItem(tabName = "plot",
+              fluidRow(
+                box(
+                  width = 12,
+                  plotOutput("bar", height = 500)
                 )
               ))
     )
@@ -92,11 +108,11 @@ server <- function(input, output, session) {
                end_date = as.Date.character(End.Date, format = "%m/%d/%Y"),
                start = paste(start_date, trimws(start_time), " "),
                end = paste(end_date, trimws(end_time), " "),
-               title = `ï..Subject`,
+               content = calendar[, grepl("Subject", colnames(calendar))],
+               title = calendar[, grepl("Subject", colnames(calendar))],
                group = 1,
                editable = TRUE,
                style = NA) %>% 
-        rename(content = `ï..Subject`) %>% 
         bind_cols(id = paste0("item", 1:nrow(calendar))) %>% 
         select(id, content, title, start, end, group, editable, style)
       
@@ -117,7 +133,7 @@ server <- function(input, output, session) {
     }
     
     # choice_list <<- unique(c(choice_list, input$item))
-    updateSelectInput(session, "work", choices = choice_list)
+    updateSelectInput(session, "work", choices = choice_list[order(choice_list)])
     values$timedf <- all
   })
   
@@ -133,6 +149,7 @@ server <- function(input, output, session) {
                     editable = TRUE,
                     style = NA)
     all <<- rbind(all, df_temp)
+    values$timedf <- all
     # df_temp <<- as.data.frame(p)
   })
   
@@ -247,7 +264,7 @@ server <- function(input, output, session) {
   ### Update the select input
   observeEvent(input$additem, {
     choice_list <<- unique(c(choice_list, input$item))
-    updateSelectInput(session, "work", choices = choice_list, selected = input$item)
+    updateSelectInput(session, "work", choices = choice_list[order(choice_list)], selected = input$item)
   })
   
   ### Save input data 
@@ -258,6 +275,26 @@ server <- function(input, output, session) {
     sheet_write(values$timedf, ss = gspath, sheet = "Sheet1")
     # write.csv(values$timedf, file = "Yufan Chen Calendar1.csv", row.names = FALSE, quote = TRUE)
   })
+  
+  ### table output
+  output$table1 <- renderDataTable({
+    values$timedf
+  }) 
+  
+  ### plot output
+  output$bar <- renderPlot({
+    data1 <- values$timedf %>% 
+      filter(group == 2) %>% 
+      mutate(timespan = as.numeric(difftime(end, start, units="hours")),
+             Completeness = factor(style, levels = c(NA, "color: red;"), labels = c("Planned but not completed", "Completed"), exclude = NULL)) %>% 
+      group_by(content, Completeness) %>% 
+      summarise(timesum = sum(timespan)) %>% 
+      ungroup()
+    
+    ggplot(data1, aes(x = content, y = timesum, fill = completeness)) +
+      geom_bar(position = "stack", stat = "identity") +
+      scale_fill_manual(values = c(colors()[621], colors()[611]))
+  }) 
 
 }
 
