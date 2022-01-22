@@ -5,6 +5,7 @@ library(shinyTime)
 library(shinydashboard)
 library(googlesheets4)
 library(ggplot2)
+library(rpivotTable)
 
 ### To use proxy for some popping errors
 # library(httr)
@@ -27,7 +28,8 @@ ui <- dashboardPage(
     sidebarMenu(
       menuItem("Planner", tabName = "planner", icon = icon("tasks")),
       menuItem("Table", tabName = "table", icon = icon("table")),
-      menuItem("Plot", tabName = "plot", icon = icon("chart-line"))
+      menuItem("Plot", tabName = "plot", icon = icon("chart-line")),
+      menuItem("Weekly Report", tabName = "report", icon = icon("flag"))
     )
   ),
   dashboardBody(
@@ -64,7 +66,6 @@ ui <- dashboardPage(
                   actionButton("undo", "Undo"),
                   br(),
                   checkboxInput("finish", label = "Selected Task", value = FALSE)
-                  # textOutput("items")
                 )
               )),
       tabItem(tabName = "table",
@@ -78,7 +79,25 @@ ui <- dashboardPage(
               fluidRow(
                 box(
                   width = 12,
-                  plotOutput("bar", height = 500)
+                  div(style="display: inline-block;vertical-align:top; width: 150px;", dateInput(inputId = "stdate", label = "Start Date", value = Sys.Date() - 30)),
+                  div(style="display: inline-block;vertical-align:top; width: 100px;",HTML("<br>")),
+                  div(style="display: inline-block;vertical-align:top; width: 150px;", dateInput(inputId = "endate", label = "End Date", value = Sys.Date())),
+                  plotOutput("bar1", height = 500)
+                ),
+                box(
+                  width = 12,
+                  plotOutput("bar2", height = 500)
+                )
+              )),
+      tabItem(tabName = "report",
+              fluidRow(
+                box(
+                  width = 12,
+                  div(style="display: inline-block;vertical-align:top; width: 150px;", dateInput(inputId = "stdate1", label = "Start Date", value = Sys.Date() - 7)),
+                  div(style="display: inline-block;vertical-align:top; width: 100px;",HTML("<br>")),
+                  div(style="display: inline-block;vertical-align:top; width: 150px;", dateInput(inputId = "endate1", label = "End Date", value = Sys.Date())),
+                  tags$head(tags$style( type = 'text/css',  '#pivot{ overflow-x: scroll; }')),
+                  rpivotTableOutput("pivot")
                 )
               ))
     )
@@ -281,8 +300,25 @@ server <- function(input, output, session) {
     values$timedf
   }) 
   
-  ### plot output
-  output$bar <- renderPlot({
+  ### plot output for the latest month
+  output$bar1 <- renderPlot({
+    data1 <<- values$timedf %>% 
+      filter(group == 2 & as.Date(start) >= input$stdate & as.Date(end) <= input$endate) %>% 
+      mutate(timespan = as.numeric(difftime(end, start, units="hours")),
+             Completeness = factor(style, levels = c(NA, "color: red;"), labels = c("Planned but not completed", "Completed"), exclude = NULL)) %>% 
+      group_by(content, Completeness) %>% 
+      summarise(timesum = sum(timespan)) %>% 
+      ungroup()
+    
+    ggplot(data1, aes(x = content, y = timesum, fill = Completeness)) +
+      geom_bar(position = "stack", stat = "identity") +
+      scale_fill_manual(values = c(colors()[621], colors()[611])) +
+      labs(title = paste0("Hours Spent on Projects from ", input$stdate, " to ", input$endate), x = "Projects", y = "Hours") +
+      theme(plot.title = element_text(hjust = 0.5))
+  }) 
+  
+  ### plot output for all
+  output$bar2 <- renderPlot({
     data1 <- values$timedf %>% 
       filter(group == 2) %>% 
       mutate(timespan = as.numeric(difftime(end, start, units="hours")),
@@ -291,9 +327,25 @@ server <- function(input, output, session) {
       summarise(timesum = sum(timespan)) %>% 
       ungroup()
     
-    ggplot(data1, aes(x = content, y = timesum, fill = completeness)) +
+    ggplot(data1, aes(x = content, y = timesum, fill = Completeness)) +
       geom_bar(position = "stack", stat = "identity") +
-      scale_fill_manual(values = c(colors()[621], colors()[611]))
+      scale_fill_manual(values = c(colors()[621], colors()[611])) +
+      labs(title = "Hours Spent on Projects", x = "Projects", y = "Hours") +
+      theme(plot.title = element_text(hjust = 0.5))
+  }) 
+  
+  ### Weekly Report
+  output$pivot <- renderRpivotTable({
+    data_pivot <- values$timedf %>% 
+      filter(group == 2 & as.Date(start) >= input$stdate1 & as.Date(end) <= input$endate1) %>% 
+      mutate(timespan = as.numeric(difftime(end, start, units="hours")),
+             Completeness = factor(style, levels = c(NA, "color: red;"), labels = c("Planned but not completed", "Completed"), exclude = NULL),
+             Date = as.Date(start)) %>%
+      select(content, Completeness, timespan, Date)  
+    # group_by(content, Completeness) %>% 
+    # summarise(timesum = sum(timespan))
+    
+    rpivotTable(data_pivot, rows = "content", cols = "timespan", aggregatorName = "Sum", vals = "timespan")
   }) 
 
 }
