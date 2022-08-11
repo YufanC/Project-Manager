@@ -65,7 +65,8 @@ ui <- dashboardPage(
                   actionButton("delete2", "Delete"),
                   actionButton("undo", "Undo"),
                   br(),
-                  checkboxInput("finish", label = "Selected Task", value = FALSE)
+                  checkboxInput("finish", label = "Selected Task", value = FALSE),
+                  textInput("note", "Note for today")
                 )
               )),
       tabItem(tabName = "table",
@@ -80,7 +81,7 @@ ui <- dashboardPage(
                 box(
                   width = 12,
                   div(style="display: inline-block;vertical-align:top; width: 150px;", dateInput(inputId = "stdate", label = "Start Date", value = Sys.Date() - 30)),
-                  div(style="display: inline-block;vertical-align:top; width: 100px;",HTML("<br>")),
+                  div(style="display: inline-block;vertical-align:top; width: 100px;", HTML("<br>")),
                   div(style="display: inline-block;vertical-align:top; width: 150px;", dateInput(inputId = "endate", label = "End Date", value = Sys.Date())),
                   plotOutput("bar1", height = 500)
                 ),
