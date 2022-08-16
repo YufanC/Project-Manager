@@ -107,9 +107,8 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
   
-  all <- data.frame()
   calendar0 <- read_sheet(gspath, sheet = "Sheet1")
-  values <- reactiveValues(timedf = NULL, origdf = NULL, undo = list(), counter = 1)
+  values <- reactiveValues(timedf = NULL, id_now = NULL, undo = list(), counter = 1)
   ### Add input onto the calendar dataframe
   observe({
     if (!is.null(input$file)){
@@ -132,21 +131,41 @@ server <- function(input, output, session) {
                title = calendar[, grepl("Subject", colnames(calendar))],
                group = 1,
                editable = TRUE,
-               style = NA) %>% 
+               style = NA,
+               note = NA) %>% 
         bind_cols(id = paste0("item", 1:nrow(calendar))) %>% 
-        select(id, content, title, start, end, group, editable, style)
+        select(id, content, title, start, end, group, editable, style, note)
       
-      all <<- rbind(calendar1, filter(calendar0, group == 2))
+      values$timedf <- rbind(calendar1, filter(calendar0, group == 2))
     } 
     else {
-      all <<- calendar0
+      values$timedf <- calendar0
       # all <<- read.csv("Yufan Chen Calendar1.csv")
     }
-    
-    if (2 %in% all$group) {
-      choice_list <<- all %>% 
-        filter(group == 2) %>% 
-        pull(content) %>% 
+  })
+  
+  observeEvent(input$add, {
+    values$id_now <- as.character(as.numeric(Sys.time())*100000)
+    df_temp <- data.frame(stringsAsFactors = F,
+                          id = values$id_now,
+                          content = input$work,
+                          title = input$work,
+                          start = trimws(as.character(input$start)),
+                          end = trimws(as.character(input$end)),
+                          group = 2,
+                          editable = TRUE,
+                          style = NA,
+                          note = NA)
+    values$timedf <- rbind(values$timedf, df_temp)
+    # df_temp <<- as.data.frame(p)
+  })
+
+  ### Update the select input
+  observe({
+    if (2 %in% values$timedf$group) {
+      choice_list <<- values$timedf %>%
+        filter(group == 2) %>%
+        pull(content) %>%
         unique()
     } else {
       choice_list <<- c("1003 QC", "R learning", "Seraphine NMPA")
@@ -154,128 +173,66 @@ server <- function(input, output, session) {
     
     # choice_list <<- unique(c(choice_list, input$item))
     updateSelectInput(session, "work", choices = choice_list[order(choice_list)])
-    values$timedf <- all
+    
+    values$id_now <- input$schedule_selected
   })
-  
-  observeEvent(input$add, {
-    id_now <<- as.character(as.numeric(Sys.time())*100000)
-    df_temp <- data.frame(stringsAsFactors = F,
-                    id = id_now,
-                    content = input$work,
-                    title = input$work,
-                    start = trimws(as.character(input$start)),
-                    end = trimws(as.character(input$end)),
-                    group = 2,
-                    editable = TRUE,
-                    style = NA)
-    all <<- rbind(all, df_temp)
-    values$timedf <- all
-    # df_temp <<- as.data.frame(p)
-  })
-  
-  # df <- eventReactive(input$add, {
-  #   all <<- rbind(all, df_temp)
-  # })
-
-  ### Add and delete functionality  
-
-  # observeEvent(input$add, {
-  #   # values$timedf <- all
-  #   # if (!is.null(input$add)){
-  #   all <<- rbind(all, df_temp)
-  #   values$timedf <- all
-  #   # }
-  # })
   
   observeEvent(input$delete, {
-    all <<- all[-nrow(all), ]
-    values$timedf <- all
+    values$timedf <- values$timedf[-nrow(values$timedf), ]
   })
   
   ### Delete by clicking, add another reactiveValue origdf for undo functionality
   observeEvent(input$delete2, {
-    values$undo[[values$counter]] <- all
-    values$counter <- values$counter + 1
-    all <<- all[all$id != input$schedule_selected, ]
-    values$timedf <- all
+    if (!is.null(input$schedule_selected)){
+      values$undo[[values$counter]] <- values$timedf
+      values$counter <- values$counter + 1
+      values$timedf <- values$timedf[values$timedf$id != input$schedule_selected, ]
+    }
   })
   
   ### Undo for deleting by clicking
   observeEvent(input$undo, {
     if (values$counter > 1){
-      all <<- values$undo[[values$counter - 1]]
+      values$timedf <- values$undo[[values$counter - 1]]
       values$counter <- values$counter - 1
-      values$timedf <- all
     }
   })
   
   ### Check after finishing
   observe({
-    if (!is.null(input$schedule_selected) && is.na(all$style[all$id == input$schedule_selected])){
-      updateCheckboxInput(session, "finish", label = all$content[all$id == input$schedule_selected], value = FALSE)
-    } else if (!is.null(input$schedule_selected) && !is.na(all$style[all$id == input$schedule_selected])){
-      updateCheckboxInput(session, "finish", label = all$content[all$id == input$schedule_selected], value = TRUE)
+    if (!is.null(input$schedule_selected)){
+      if (input$schedule_selected %in% values$timedf$id){
+        if (is.na(values$timedf$style[values$timedf$id == input$schedule_selected])){
+          updateCheckboxInput(session, "finish", label = values$timedf$content[values$timedf$id == input$schedule_selected], value = FALSE)
+        } else if (!is.na(values$timedf$style[values$timedf$id == input$schedule_selected])){
+          updateCheckboxInput(session, "finish", label = values$timedf$content[values$timedf$id == input$schedule_selected], value = TRUE)
+        }
+      }
     }
-    id_now <<- input$schedule_selected
   })
-    
-  # observe({
-  #   if (input$finish){
-  #     all$style[all$id == input$schedule_selected] <- "color: red;"
-  #   } else {
-  #     all$style[all$id == input$schedule_selected] <- NA
-  #   }
-  #   all
-  # })
   
-  # values$timedf <- reactive({
-  #   if (input$finish){
-  #     all$style[all$id == input$schedule_selected] <- "color: red;"
-  #   } else {
-  #     all$style[all$id == input$schedule_selected] <- NA
-  #   }
-  #   all
-  # })
+  observeEvent(input$finish, {
+    if (!is.null(input$schedule_selected)){
+      if (input$schedule_selected %in% values$timedf$id){
+        if (input$finish){
+          values$timedf$style[values$timedf$id == input$schedule_selected] <- "color: red;"
+        } else if (input$finish == F){
+          values$timedf$style[values$timedf$id == input$schedule_selected] <- NA}
+      }
+    }
+  })
   
-  # selected_item <- eventReactive(input$finish, {
-  #   input$schedule_selected
-  #   id_now <<- input$schedule_selected
-  # })
+  ### Update note
+  observe({
+    updateTextInput(session, "note", label = "Note for today", value = values$timedf$note[nrow(values$timedf)])
+  })
   
-  # observe({
-  #   if (!is.null(selected_item()) && is.na(all$style[all$id == selected_item()])){
-  #     all$style[all$id == selected_item()] <<- "color: red;"
-  #   }
-  #   values$timedf <- all
-  # })
-
-  # observeEvent(input$finish, {
-  #   
-  #   if (!is.null(input$schedule_selected) && is.na(all$style[all$id == input$schedule_selected])){
-  #     all$style[all$id == input$schedule_selected] <<- "color: red;"
-  #   } else if (input$finish == F){
-  #     all$style[all$id == input$schedule_selected] <<- NA}
-  #   # } else {
-  #   #   all$style[all$id == input$schedule_selected] <<- NA
-  #   # }
-  #   values$timedf <- all
-  # })
-
   ### Output
   output$schedule <- renderTimevis({
-    if (!is.null(input$schedule_selected) && is.na(all$style[all$id == input$schedule_selected]) && input$finish){
-      all$style[all$id == input$schedule_selected] <<- "color: red;"
-    } else if (input$finish == F){
-      all$style[all$id == input$schedule_selected] <<- NA}
-    if (input$finish == F){
-      all$style[all$id == input$schedule_selected] <<- NA
-    }
-    values$timedf <- all
-    
     timevis(data = values$timedf, groups = data.frame(id = 1:2, content = c("Meetings", "Tasks")), fit = F) %>% 
-      centerItem(id_now)
+      centerItem(values$id_now)
   })
-
+  
   ### Update the timeinput
   observeEvent(input$add, {
     updateTimeInput(session, "start", value = input$end)
@@ -291,6 +248,8 @@ server <- function(input, output, session) {
   observeEvent(input$save, {
     showNotification("New tasks have been saved",
                      action = a(href = "javascript:location.reload();", "Reload page"))
+    
+    values$timedf$note[nrow(values$timedf)] <- input$note
     
     sheet_write(values$timedf, ss = gspath, sheet = "Sheet1")
     # write.csv(values$timedf, file = "Yufan Chen Calendar1.csv", row.names = FALSE, quote = TRUE)
@@ -343,12 +302,10 @@ server <- function(input, output, session) {
              Completeness = factor(style, levels = c(NA, "color: red;"), labels = c("Planned but not completed", "Completed"), exclude = NULL),
              Date = as.Date(start)) %>%
       select(content, Completeness, timespan, Date)  
-    # group_by(content, Completeness) %>% 
-    # summarise(timesum = sum(timespan))
     
     rpivotTable(data_pivot, rows = "content", cols = "timespan", aggregatorName = "Sum", vals = "timespan")
   }) 
-
+  
 }
 
 shinyApp(ui = ui, server = server)
