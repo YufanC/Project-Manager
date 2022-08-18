@@ -134,7 +134,7 @@ server <- function(input, output, session) {
                style = NA,
                note = NA) %>% 
         bind_cols(id = paste0("item", 1:nrow(calendar))) %>% 
-        select(id, content, title, start, end, group, editable, style, note)
+        select(id, content, title, start_date, start, end, group, editable, style, note)
       
       values$timedf <- rbind(calendar1, filter(calendar0, group == 2))
     } 
@@ -150,6 +150,7 @@ server <- function(input, output, session) {
                           id = values$id_now,
                           content = input$work,
                           title = input$work,
+                          start_date = trimws(as.character(input$date)),
                           start = trimws(as.character(input$start)),
                           end = trimws(as.character(input$end)),
                           group = 2,
@@ -222,9 +223,13 @@ server <- function(input, output, session) {
     }
   })
   
-  ### Update note
+  ## Update note
   observe({
-    updateTextInput(session, "note", label = "Note for today", value = values$timedf$note[nrow(values$timedf)])
+    
+    note_today <- values$timedf$note[values$timedf$start_date == input$date]
+    note_today <- unique(note_today[!is.na(note_today)])
+    
+    updateTextInput(session, "note", label = "Note for today", value = note_today)
   })
   
   ### Output
@@ -248,8 +253,9 @@ server <- function(input, output, session) {
   observeEvent(input$save, {
     showNotification("New tasks have been saved",
                      action = a(href = "javascript:location.reload();", "Reload page"))
+  
     
-    values$timedf$note[nrow(values$timedf)] <- input$note
+    values$timedf$note[values$timedf$start_date == input$date] <- input$note
     
     sheet_write(values$timedf, ss = gspath, sheet = "Sheet1")
     # write.csv(values$timedf, file = "Yufan Chen Calendar1.csv", row.names = FALSE, quote = TRUE)
