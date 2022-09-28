@@ -146,13 +146,16 @@ server <- function(input, output, session) {
   
   observeEvent(input$add, {
     values$id_now <- as.character(as.numeric(Sys.time())*100000)
+    start_time <- trimws(format(input$start, format = "%H:%M:%S"))
+    end_time <- trimws(format(input$end, format = "%H:%M:%S"))
+    start_date <-  trimws(as.character(input$date))
     df_temp <- data.frame(stringsAsFactors = F,
                           id = values$id_now,
                           content = input$work,
                           title = input$work,
-                          start_date = trimws(as.character(input$date)),
-                          start = trimws(as.character(input$start)),
-                          end = trimws(as.character(input$end)),
+                          start_date = start_date,
+                          start = paste(start_date, trimws(start_time), " "),
+                          end = paste(start_date, trimws(end_time), " "),
                           group = 2,
                           editable = TRUE,
                           style = NA,
