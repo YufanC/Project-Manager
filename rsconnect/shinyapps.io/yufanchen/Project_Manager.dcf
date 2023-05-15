@@ -5,10 +5,10 @@ account: yufanchen
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5153268
-bundleId: 5269698
+bundleId: 7218860
 url: https://yufanchen.shinyapps.io/Project_Manager/
-when: 1637311045.18119
-lastSyncTime: 1637311045.18119
+when: 1684140672.64266
+lastSyncTime: 1684140672.64266
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: Test.R|Yufan Chen Calendar2.csv|Yufan Chen Calendar3.csv|Yufan Chen Calendar4.csv
+ignoredFiles: .secrets|app_old.R|app_v1.R|backup.pst|Step1_Subset_Calendar.R|Test.R|Yufan Chen Calendar.CSV|Yufan Chen Calendar1.csv|Yufan Chen Calendar2.csv
