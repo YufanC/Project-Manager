@@ -374,15 +374,25 @@ server <- function(input, output, session) {
   
   ### plot output for the latest month
   output$bar1 <- renderPlot({
-    data1 <<- values$timedf %>% 
+    data1 <- values$timedf %>% 
       filter(group == 2 & as.Date(start) >= input$stdate & as.Date(end) <= input$endate) %>% 
       mutate(timespan = as.numeric(difftime(end, start, units="hours")),
              Completeness = factor(style, levels = c(NA, "color: red;"), labels = c("Planned but not completed", "Completed"), exclude = NULL)) %>% 
       group_by(content, Completeness) %>% 
       summarise(timesum = sum(timespan)) %>% 
+      ungroup() %>% 
+      mutate(contentid = content)
+    
+    data2 <- data1 %>% 
+      group_by(contentid, content) %>% 
+      summarise(timesum1 = sum(timesum)) %>% 
       ungroup()
     
-    ggplot(data1, aes(x = content, y = timesum, fill = Completeness)) +
+    data3 <- data2 %>% 
+      mutate(content_fct = factor(content, levels = content[order(data2$timesum1, decreasing = TRUE)])) %>% 
+      left_join(data1, by = "contentid")
+    
+    ggplot(data3, aes(x = content_fct, y = timesum, fill = Completeness)) +
       geom_bar(position = "stack", stat = "identity") +
       scale_fill_manual(values = c(colors()[621], colors()[611])) +
       labs(title = paste0("Hours Spent on Projects from ", input$stdate, " to ", input$endate), x = "Projects", y = "Hours") +
@@ -397,13 +407,24 @@ server <- function(input, output, session) {
              Completeness = factor(style, levels = c(NA, "color: red;"), labels = c("Planned but not completed", "Completed"), exclude = NULL)) %>% 
       group_by(content, Completeness) %>% 
       summarise(timesum = sum(timespan)) %>% 
+      ungroup() %>% 
+      mutate(contentid = content)
+      
+    data2 <- data1 %>% 
+      group_by(contentid, content) %>% 
+      summarise(timesum1 = sum(timesum)) %>% 
       ungroup()
     
-    ggplot(data1, aes(x = content, y = timesum, fill = Completeness)) +
+    data3 <- data2 %>% 
+      mutate(content_fct = factor(content, levels = content[order(data2$timesum1, decreasing = TRUE)])) %>% 
+      left_join(data1, by = "contentid")
+    
+    ggplot(data3, aes(x = content_fct, y = timesum, fill = Completeness)) +
       geom_bar(position = "stack", stat = "identity") +
       scale_fill_manual(values = c(colors()[621], colors()[611])) +
       labs(title = "Hours Spent on Projects", x = "Projects", y = "Hours") +
-      theme(plot.title = element_text(hjust = 0.5))
+      theme(plot.title = element_text(hjust = 0.5),
+            axis.text.x = element_text(angle = 45, hjust = 1))
   }) 
   
   ### Weekly Report
